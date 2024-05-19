@@ -13,7 +13,7 @@ OLD_REPO_NAME=$1
 if [[ $# == 2 ]]; then
     NEW_REPO_NAME=$2
 else
-    NEW_REPO_NAME=$1
+    NEW_REPO_NAME=${OLD_REPO_NAME}
 fi
 
 # User names
@@ -37,20 +37,16 @@ check_command git-lfs
 # Create bare clone
 git clone --mirror git@bitbucket.org:${BB_USER}/${OLD_REPO_NAME}.git
 
-# Make sure there's no lfs (TODO -- see
-# https://docs.github.com/en/repositories/creating-and-managing-repositories/duplicating-a-repository)
+# Check for git lfs files (NB: bare repo here)
 cd ${OLD_REPO_NAME}.git
-ls_files=git lfs ls-files &> /dev/null
+lfs_files=`git lfs ls-files`
 cd ..
-if [[ ${ls_files} ]]; then
-    GIT_LFS=1
-else
-    GIT_LFS=0
-fi
 
-if [[ ${GIT_LFS} == 1 ]]; then
-    echo "Repo has git lfs and this is not yet supported. Exiting."
-    exit 1
+if [[ ${lfs_files} ]]; then
+    # Fetch git lfs
+    cd ${OLD_REPO_NAME}.git
+    git lfs fetch --all
+    cd ..
 fi
 
 # Create new repo on github
@@ -60,6 +56,12 @@ gh repo create ${NEW_REPO_NAME} --${GH_REPO_TYPE}
 cd ${OLD_REPO_NAME}.git
 git push --mirror git@github.com:${GH_USER}/${NEW_REPO_NAME}.git
 cd ..
+
+if [[ ${lfs_files} ]]; then
+    cd ${OLD_REPO_NAME}.git
+    git lfs push --all git@github.com:${GH_USER}/${NEW_REPO_NAME}.git
+    cd ..
+fi
 
 # If all is ok
 # /usr/bin/rm -rf ${OLD_REPO_NAME}.git
